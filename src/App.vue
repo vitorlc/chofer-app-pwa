@@ -14,6 +14,8 @@
 </template>
 
 <script>
+
+
 let vm;
 
 export default {
@@ -26,7 +28,8 @@ export default {
     return {
       server: null,
       service: null,
-      device: null
+      device: null,
+      receivedData : ""
     };
   },
   methods: {
@@ -37,23 +40,19 @@ export default {
       try {
         console.log("Requesting any Bluetooth Device...");
         const device = await navigator.bluetooth.requestDevice({
-          // filters: [...] <- Prefer filters to save energy & show relevant devices.
           acceptAllDevices: true,
           optionalServices: optionalServices
         });
 
         const server = await device.gatt.connect();
-
-        // Note that we could also get all services that match a specific UUID by
-        // passing it to getPrimaryServices().
         const services = await server.getPrimaryServices();
 
         for (const service of services) {
-          console.log("\n=====> Service: " + service.uuid);
+          console.log("\n\n======> Service: " + service.uuid);
           const characteristics = await service.getCharacteristics();
 
           characteristics.forEach(characteristic => {
-            console.log("\n=====> Characteristic: " + characteristic.uuid);
+            console.table("===> Characteristic: " + characteristic.uuid);
             // const value = await characteristic.readValue();
             // console.log("> Battery Level is " + value.getUint8(0) + "%");
             console.log(getSupportedProperties(characteristic));
@@ -74,41 +73,51 @@ export default {
         }
         return "[" + supportedProperties.join(", ") + "]";
       }
-
     },
     async connect(){
       let optionalServices = [0x1800, 0x1801, 0x1804, 0x180f, 0xfff0];
        try {
-        console.log('Requesting Bluetooth Device...');
+        console.log('Solicitando dispositivos Bluetooth...');
         const device  = await navigator.bluetooth.requestDevice({
           acceptAllDevices: true,
           optionalServices: optionalServices
         });
 
-        console.log('Connecting to GATT Server...');
+        console.log('Conectado ao GATT Server...');
         const server = await device.gatt.connect();
 
-        console.log('Getting Heart Rate Service...');
-        const service = await server.getPrimaryService(0x180f);
+        console.log('Conectando ao serviço...');
+        const service = await server.getPrimaryService(0xfff0);
 
-        console.log('Getting Heart Rate Control Point Characteristic...');
-        const characteristic = await service.getCharacteristic(0x2a19);
+        const characteristic = await service.getCharacteristic(0xfff2);
 
-        console.log('Writing Heart Rate Control Point Characteristic...');
-        // Writing 1 is the signal to reset energy expended.
-        setInterval(async function(){ 
-          const value = await characteristic.readValue();
-          console.log("> Battery Level is " + value.getUint8(0) + "%");
-          // let resetOBD = Uint8Array.of('ATZ\r');
-          // await characteristic.writeValue(resetOBD);
-        }, 5000);
-        console.log('> Has been reset.');
+        vm.writeValue(characteristic, 'reset')
+        vm.writeValue(characteristic)
+
+        const characteristic2 = await service.getCharacteristic(0xfff1);
+
+        // vm.readValuePing(characteristic2)
+
+        //await characteristic2.startNotifications();
+        //characteristic2.addEventListener('characteristicvaluechanged', vm.handleNotifications);
+
       } catch(error) {
         console.log('Argh! ' + error);
       }
 
     },
-
+    handleNotifications(event) {
+      let value = event.target.value;
+      console.log(value)
+      let a = [];
+      // Convert raw data bytes to hex values just for the sake of showing something.
+      // In the "real" world, you'd use data.getUint8, data.getUint16 or even
+      // TextDecoder to process raw data bytes.
+      for (let i = 0; i < value.byteLength; i++) {
+        a.push(value.getUint8(i).toString('16').slice(-2));
+      }
+      console.log('Notification >> ' + a.join(' '));
+    },
     disconect() {
       if (!vm.device) {
         return;
@@ -120,7 +129,28 @@ export default {
         console.log("> Bluetooth Device is already disconnected");
       }
     },
-    
+    writeValue(characteristic, type){
+      let data
+      let encoder = new TextEncoder('utf-8');
+      if (type =='reset'){ // Strings needs to encode
+        // console.log("Encoded Message: " + encoder.encode([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r']));
+        let teste1 = new Uint8Array([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r'])
+        console.log("OLHA AQUI", teste1.length)
+        characteristic.writeValue(teste1);
+        // data = Buffer.from([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r'], "utf-8"); // Reset OBD
+      }
+      else{ // Uint8Array.from or new Uint8Array
+        setInterval(async function(){ 
+          await characteristic.writeValue(new Uint8Array(['0x010C\r'])); //Write Params
+        }, 1000);
+      }
+    },
+    readValuePing(characteristic){
+      setInterval(async function(){ 
+        let value = await characteristic.readValue();
+        console.log(value.toString('utf8'))
+      }, 5000);
+    },
   }
 };
 </script>

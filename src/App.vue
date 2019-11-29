@@ -98,8 +98,8 @@ export default {
 
         // vm.readValuePing(characteristic2)
 
-        //await characteristic2.startNotifications();
-        //characteristic2.addEventListener('characteristicvaluechanged', vm.handleNotifications);
+        await characteristic2.startNotifications();
+        characteristic2.addEventListener('characteristicvaluechanged', vm.handleNotifications);
 
       } catch(error) {
         console.log('Argh! ' + error);
@@ -108,15 +108,15 @@ export default {
     },
     handleNotifications(event) {
       let value = event.target.value;
-      console.log(value)
+      console.log('Notification Value >>',value)
       let a = [];
       // Convert raw data bytes to hex values just for the sake of showing something.
       // In the "real" world, you'd use data.getUint8, data.getUint16 or even
       // TextDecoder to process raw data bytes.
       for (let i = 0; i < value.byteLength; i++) {
-        a.push(value.getUint8(i).toString('16').slice(-2));
+        a.push(value.getUint8(i).toString('8').slice(-2));
       }
-      console.log('Notification >> ' + a.join(' '));
+      console.log('Notification Transform>> ' + a.join(' '));
     },
     disconect() {
       if (!vm.device) {
@@ -134,23 +134,31 @@ export default {
       let encoder = new TextEncoder('utf-8');
       if (type =='reset'){ // Strings needs to encode
         // console.log("Encoded Message: " + encoder.encode([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r']));
-        let teste1 = new Uint8Array([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r'])
-        console.log("OLHA AQUI", teste1.length)
-        characteristic.writeValue(teste1);
+        characteristic.writeValue(Buffer.from(['ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r'],'utf8'));
         // data = Buffer.from([ 'ATZ\r', 'ATL0\r', 'ATS0\r', 'ATH0\r', 'ATE0\r', 'ATAT2\r', 'ATSP0\r'], "utf-8"); // Reset OBD
       }
       else{ // Uint8Array.from or new Uint8Array
         setInterval(async function(){ 
-          await characteristic.writeValue(new Uint8Array(['0x010C\r'])); //Write Params
+          await characteristic.writeValue(Buffer.from([0x010C])); //Write Params
         }, 1000);
       }
     },
     readValuePing(characteristic){
+      // const decoder = new TextDecoder('utf-8');
       setInterval(async function(){ 
         let value = await characteristic.readValue();
-        console.log(value.toString('utf8'))
+        console.log("STRING::")
+        console.log(vm.toHexString(value))
       }, 5000);
     },
+
+    toHexString(byteArray) {
+      console.log("AQUIIII")
+      console.log(byteArray.buffer.Int16Array)
+      return byteArray.reduce((output, elem) => 
+        (output + ('0' + elem.toString(16)).slice(-2)),
+        '');
+    }
   }
 };
 </script>
